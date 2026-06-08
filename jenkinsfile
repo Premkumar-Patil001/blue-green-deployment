@@ -1,0 +1,86 @@
+pipeline {
+  agent any
+
+  environment {
+    LISTENER_ARN = "aws:elasticloadbalancing:us-east-1:400138960437:listener/app/blue-green-alb/70b0d5df2926ed2f/cb076caa3edeeb53
+"
+    BLUE_TG_ARN  = "aws:elasticloadbalancing:us-east-1:400138960437:targetgroup/blue-tg/fab629a1571356bb
+"
+    GREEN_TG_ARN = "aws:elasticloadbalancing:us-east-1:400138960437:targetgroup/green-tg/ec4bdb492d08ff4c
+"
+    GREEN_IP     = "172.31.37.8"
+    //            ↑ Use PRIVATE IP — Jenkins is on same VPC as Green
+  }
+
+  stages {
+
+    stage('Pull Code from GitHub') {
+      steps {
+        git branch: 'main',
+            url: 'https://github.com/Premkumar-Patil001/blue-green-deployment.git'
+        echo "Code pulled successfully"
+      }
+    }
+
+    stage('Deploy to Green Server') {
+      steps {
+        sshagent(credentials: ['green-ec2-ssh']) {
+          sh """
+            ssh -o StrictHostKeyChecking=no               ubuntu@${GREEN_IP} "mkdir -p /tmp/appfiles"
+
+            scp -o StrictHostKeyChecking=no -r               app/* ubuntu@${GREEN_IP}:/tmp/appfiles/
+
+            scp -o StrictHostKeyChecking=no               scripts/deploy.sh ubuntu@${GREEN_IP}:/tmp/
+
+            ssh -o StrictHostKeyChecking=no               ubuntu@${GREEN_IP} "bash /tmp/deploy.sh"
+          """
+        }
+      }
+    }
+
+    stage('Health Check') {
+      steps {
+        script {
+          echo "Waiting 10 seconds for server to stabilize..."
+          sleep(10)
+          def status = sh(
+            script: "curl -s -o /dev/null -w '%{http_code}' http://${GREEN_IP}/health",
+            returnStdout: true
+          ).trim()
+          echo "Health check returned: ${status}"
+          if (status != '200') {
+            error("Health check FAILED — status ${status}. Rollback will execute.")
+          }
+          echo "Health check PASSED. Switching traffic."
+        }
+      }
+    }
+
+    stage('Switch ALB Traffic to Green') {
+      steps {
+        sh """
+          aws elbv2 modify-listener \
+            --listener-arn ${LISTENER_ARN} \
+            --default-actions Type=forward,TargetGroupArn=${GREEN_TG_ARN}
+        """
+        echo "SUCCESS — traffic now on Green"
+      }
+    }
+
+  }
+
+  post {
+    failure {
+      echo "PIPELINE FAILED — rolling back to Blue"
+      sh """
+        aws elbv2 modify-listener \
+          --listener-arn ${LISTENER_ARN} \
+          --default-actions Type=forward,TargetGroupArn=${BLUE_TG_ARN}
+      """
+      echo "ROLLBACK COMPLETE — traffic back on Blue"
+    }
+    success {
+      echo "DEPLOYMENT COMPLETE — Green is now live"
+    }
+  }
+}
