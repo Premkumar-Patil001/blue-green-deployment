@@ -2,11 +2,11 @@ pipeline {
   agent any
 
   environment {
-    LISTENER_ARN = "aws:elasticloadbalancing:us-east-1:400138960437:listener/app/blue-green-alb/70b0d5df2926ed2f/cb076caa3edeeb53"
+    LISTENER_ARN = "arn:aws:elasticloadbalancing:us-east-1:400138960437:listener/app/blue-green-alb/70b0d5df2926ed2f/cb076caa3edeeb53"
 
-    BLUE_TG_ARN  = "aws:elasticloadbalancing:us-east-1:400138960437:targetgroup/blue-tg/fab629a1571356bb"
+    BLUE_TG_ARN  = "arn:aws:elasticloadbalancing:us-east-1:400138960437:targetgroup/blue-tg/fab629a1571356bb"
 
-    GREEN_TG_ARN = "aws:elasticloadbalancing:us-east-1:400138960437:targetgroup/green-tg/ec4bdb492d08ff4c"
+    GREEN_TG_ARN = "arn:aws:elasticloadbalancing:us-east-1:400138960437:targetgroup/green-tg/ec4bdb492d08ff4c"
 
     GREEN_IP     = "172.31.37.8"
     //            ↑ Use PRIVATE IP — Jenkins is on same VPC as Green
