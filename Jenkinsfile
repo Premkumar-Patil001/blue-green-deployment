@@ -44,7 +44,7 @@ pipeline {
           echo "Waiting 10 seconds for server to stabilize..."
           sleep(10)
           def status = sh(
-            script: "curl -s -o /dev/null -w '%{http_code}' http://\${GREEN_IP}/healthzzz",
+            script: "curl -s -o /dev/null -w '%{http_code}' http://\${GREEN_IP}/health",
             returnStdout: true
           ).trim()
           echo "Health check returned: ${status}"
